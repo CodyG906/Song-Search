@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Song Search</title>
+<style>
+:root{--bg:#0b0d12;--card:#151923;--text:#f7f7f8;--muted:#9da4b3;--accent:#ff6b35;--line:#292f3b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.wrap{max-width:680px;margin:auto;padding:42px 18px 60px}
+h1{font-size:38px;margin:0 0 8px;letter-spacing:-1px}
+.sub{color:var(--muted);margin:0 0 30px}
+label{display:block;font-weight:700;margin:18px 0 8px}
+input{width:100%;font-size:17px;padding:16px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);outline:none}
+input:focus{border-color:var(--accent)}
+button{width:100%;margin-top:18px;padding:16px;border:0;border-radius:12px;background:var(--accent);color:white;font-size:17px;font-weight:800;cursor:pointer}
+button:disabled{opacity:.55}
+#status{color:var(--muted);min-height:24px;margin:18px 2px 8px}
+.results{display:grid;gap:10px}
+.result{background:var(--card);border:1px solid var(--line);padding:16px;border-radius:14px;cursor:pointer}
+.result:active{transform:scale(.99)}
+.song{font-size:18px;font-weight:800}
+.artist{color:var(--muted);margin-top:4px}
+.badge{display:inline-block;margin-top:9px;font-size:12px;color:#c8ced8}
+.copied{color:#79e28d!important}
+small{display:block;color:var(--muted);margin-top:24px;line-height:1.5}
+</style>
+</head>
+<body>
+<main class="wrap">
+<h1>Song Search</h1>
+<p class="sub">Find the song you remember.</p>
+
+<label for="clue">What do you remember?</label>
+<input id="clue" placeholder="Song title, lyrics, or anything you remember" autocomplete="off">
+
+<label for="artist">Artist <span style="color:var(--muted);font-weight:500">(optional)</span></label>
+<input id="artist" placeholder="Example: Drake" autocomplete="off">
+
+<button id="find">FIND SONG</button>
+<div id="status"></div>
+<div id="results" class="results"></div>
+<small>Searches iTunes, LRCLIB, and MusicBrainz. Artist is optional.</small>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const norm=s=>(s||'').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
+const words=s=>norm(s).split(/\s+/).filter(Boolean);
+
+function scoreText(clue,title,artist,album=''){
+  const q=norm(clue), hay=norm(title+' '+artist+' '+album);
+  if(!q) return 0;
+  let score=hay.includes(q)?100:0;
+  const qwords=words(clue), h=new Set(words(hay));
+  score += qwords.filter(w=>h.has(w)).length*10;
+  if(norm(title)===q) score+=120;
+  if(norm(title).includes(q)) score+=60;
+  return score;
+}
+function artistOK(wanted,actual){
+  if(!wanted) return true;
+  const a=norm(wanted), b=norm(actual);
+  return b.includes(a)||a.includes(b);
+}
+async function fetchJSON(url){
+  const r=await fetch(url);
+  if(!r.ok) throw new Error(r.status);
+  return r.json();
+}
+async function itunes(q){
+  return new Promise(resolve=>{
+    const cb='itcb_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+    const s=document.createElement('script');
+    const timer=setTimeout(()=>{cleanup();resolve([])},8000);
+    function cleanup(){clearTimeout(timer);delete window[cb];s.remove()}
+    window[cb]=d=>{cleanup();resolve((d.results||[]).map(x=>({
+      title:x.trackName,artist:x.artistName,album:x.collectionName||'',source:'iTunes'
+    })))};
+    s.src='https://itunes.apple.com/search?media=music&entity=song&country=US&limit=35&callback='+cb+'&term='+encodeURIComponent(q);
+    s.onerror=()=>{cleanup();resolve([])};
+    document.body.appendChild(s);
+  });
+}
+async function lrclib(q){
+  try{
+    const d=await fetchJSON('https://lrclib.net/api/search?q='+encodeURIComponent(q));
+    return (Array.isArray(d)?d:[]).slice(0,35).map(x=>({
+      title:x.trackName,artist:x.artistName,album:x.albumName||'',source:'Lyrics'
+    }));
+  }catch(e){return []}
+}
+async function musicbrainz(q){
+  try{
+    const d=await fetchJSON('https://musicbrainz.org/ws/2/recording/?fmt=json&limit=25&query='+encodeURIComponent(q));
+    return (d.recordings||[]).map(x=>({
+      title:x.title,
+      artist:(x['artist-credit']||[]).map(a=>a.name||a.artist?.name).filter(Boolean).join(' / '),
+      album:(x.releases&&x.releases[0]?.title)||'',
+      source:'MusicBrainz'
+    }));
+  }catch(e){return []}
+}
+async function lyricCheck(item,clue){
+  if(words(clue).length<3) return false;
+  try{
+    const u='https://lrclib.net/api/search?track_name='+encodeURIComponent(item.title)+'&artist_name='+encodeURIComponent(item.artist);
+    const list=await fetchJSON(u);
+    const q=norm(clue);
+    return (Array.isArray(list)?list:[]).slice(0,3).some(x=>norm(x.plainLyrics||'').includes(q));
+  }catch(e){return false}
+}
+async function copyText(text,el){
+  try{await navigator.clipboard.writeText(text)}
+  catch(e){
+    const t=document.createElement('textarea');t.value=text;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();
+  }
+  const badge=el.querySelector('.badge');
+  badge.textContent='Copied!';
+  badge.classList.add('copied');
+  setTimeout(()=>{badge.textContent='Tap to copy';badge.classList.remove('copied')},1200);
+}
+function dedupe(items){
+  const m=new Map();
+  for(const x of items){
+    if(!x.title||!x.artist) continue;
+    const k=norm(x.title)+'|'+norm(x.artist);
+    if(!m.has(k)) m.set(k,x);
+  }
+  return [...m.values()];
+}
+async function search(){
+  const clue=$('clue').value.trim(), artist=$('artist').value.trim();
+  if(!clue){$('status').textContent='Type something you remember.';return}
+  $('find').disabled=true;
+  $('status').textContent='Searching...';
+  $('results').innerHTML='';
+  const q=[artist,clue].filter(Boolean).join(' ');
+  let all=[];
+  try{
+    const [a,b,c]=await Promise.all([itunes(q),lrclib(q),musicbrainz(q)]);
+    all=dedupe([...a,...b,...c]);
+    if(artist){
+      const filtered=all.filter(x=>artistOK(artist,x.artist));
+      if(filtered.length) all=filtered;
+    }
+    for(const x of all) x.score=scoreText(clue,x.title,x.artist,x.album)+(artist&&artistOK(artist,x.artist)?100:0);
+    all.sort((x,y)=>y.score-x.score);
+    const top=all.slice(0,12);
+    await Promise.all(top.map(async x=>{if(await lyricCheck(x,clue)) x.score+=350}));
+    top.sort((x,y)=>y.score-x.score);
+    const final=top.slice(0,5);
+    if(!final.length){$('status').textContent='No matches found.';return}
+    $('status').textContent='Top matches';
+    for(const x of final){
+      const el=document.createElement('div');el.className='result';
+      el.innerHTML='<div class="song">'+x.title+'</div><div class="artist">'+x.artist+'</div><div class="badge">Tap to copy</div>';
+      el.onclick=()=>copyText(x.title+' — '+x.artist,el);
+      $('results').appendChild(el);
+    }
+  }catch(e){
+    $('status').textContent='Search failed.';
+  }finally{$('find').disabled=false}
+}
+$('find').onclick=search;
+$('clue').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
+$('artist').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
+</script>
+</body>
+</html>
