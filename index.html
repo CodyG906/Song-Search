@@ -3,34 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
 <title>Song Search</title>
 <style>
-:root{--bg:#0b0d12;--card:#151923;--text:#f7f7f8;--muted:#9da4b3;--accent:#ff6b35;--line:#292f3b}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-.wrap{max-width:680px;margin:auto;padding:42px 18px 60px}
-h1{font-size:38px;margin:0 0 8px;letter-spacing:-1px}
-.sub{color:var(--muted);margin:0 0 30px}
-label{display:block;font-weight:700;margin:18px 0 8px}
-input{width:100%;font-size:17px;padding:16px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);outline:none}
-input:focus{border-color:var(--accent)}
-button{width:100%;margin-top:18px;padding:16px;border:0;border-radius:12px;background:var(--accent);color:white;font-size:17px;font-weight:800;cursor:pointer}
-button:disabled{opacity:.55}
-#status{color:var(--muted);min-height:24px;margin:18px 2px 8px}
-.results{display:grid;gap:10px}
-.result{background:var(--card);border:1px solid var(--line);padding:16px;border-radius:14px;cursor:pointer}
-.result:active{transform:scale(.99)}
-.song{font-size:18px;font-weight:800}
-.artist{color:var(--muted);margin-top:4px}
-.badge{display:inline-block;margin-top:9px;font-size:12px;color:#c8ced8}
-.copied{color:#79e28d!important}
-small{display:block;color:var(--muted);margin-top:24px;line-height:1.5}
+:root{--bg:#0b0d12;--card:#151923;--text:#f7f7f8;--muted:#9da4b3;--accent:#ff6b35;--line:#292f3b;--good:#79e28d;--bad:#ff8b8b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.wrap{max-width:680px;margin:auto;padding:42px 18px 60px}h1{font-size:38px;margin:0 0 8px;letter-spacing:-1px}.sub{color:var(--muted);margin:0 0 24px}label{display:block;font-weight:700;margin:18px 0 8px}input{width:100%;font-size:17px;padding:16px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);outline:none}input:focus{border-color:var(--accent)}button{border:0;border-radius:12px;background:var(--accent);color:white;font-size:17px;font-weight:800;cursor:pointer}.find{width:100%;margin-top:18px;padding:16px}.find:disabled{opacity:.55}.setupBtn{width:100%;padding:12px;margin-bottom:6px;background:transparent;border:1px solid var(--line);color:var(--muted)}.setup{display:none;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:22px}.setup.open{display:block}.setup p{color:var(--muted);font-size:13px;line-height:1.45;margin:0 0 10px}.setupActions{display:flex;gap:8px;margin-top:10px}.setupActions button{flex:1;padding:11px;font-size:14px}.clear{background:#2a2f39}.keyStatus{font-size:13px;margin-top:10px;color:var(--muted)}#status{color:var(--muted);min-height:24px;margin:18px 2px 8px}.results{display:grid;gap:10px}.result{background:var(--card);border:1px solid var(--line);padding:16px;border-radius:14px;cursor:pointer}.result:active{transform:scale(.99)}.song{font-size:18px;font-weight:800}.artist{color:var(--muted);margin-top:4px}.source{display:inline-block;margin-top:9px;font-size:12px;color:#c8ced8}.copied{color:var(--good)!important}.error{color:var(--bad)!important}small{display:block;color:var(--muted);margin-top:24px;line-height:1.5}
 </style>
 </head>
 <body>
 <main class="wrap">
 <h1>Song Search</h1>
-<p class="sub">Find the song you remember.</p>
+<p class="sub">Type what you remember. Tap the right result to copy it.</p>
+
+<button id="setupBtn" class="setupBtn">YouTube setup</button>
+<div id="setup" class="setup">
+  <p>Paste your YouTube Data API key here. It is saved only in this browser on this device and is not stored in GitHub.</p>
+  <input id="apiKey" type="password" placeholder="YouTube API key" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <div class="setupActions"><button id="saveKey">Save key</button><button id="clearKey" class="clear">Clear key</button></div>
+  <div id="keyStatus" class="keyStatus"></div>
+</div>
 
 <label for="clue">What do you remember?</label>
 <input id="clue" placeholder="Song title, lyrics, or anything you remember" autocomplete="off">
@@ -38,134 +29,88 @@ small{display:block;color:var(--muted);margin-top:24px;line-height:1.5}
 <label for="artist">Artist <span style="color:var(--muted);font-weight:500">(optional)</span></label>
 <input id="artist" placeholder="Example: Drake" autocomplete="off">
 
-<button id="find">FIND SONG</button>
+<button id="find" class="find">FIND SONG</button>
 <div id="status"></div>
 <div id="results" class="results"></div>
-<small>Searches iTunes, LRCLIB, and MusicBrainz. Artist is optional.</small>
+<small>YouTube is searched first. iTunes, LRCLIB, and MusicBrainz are used as backup sources.</small>
 </main>
-
 <script>
 const $=id=>document.getElementById(id);
-const norm=s=>(s||'').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
+const KEY_NAME='songSearchYouTubeApiKey';
+const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
 const words=s=>norm(s).split(/\s+/).filter(Boolean);
+const decodeHtml=s=>{const t=document.createElement('textarea');t.innerHTML=s||'';return t.value};
 
-function scoreText(clue,title,artist,album=''){
-  const q=norm(clue), hay=norm(title+' '+artist+' '+album);
-  if(!q) return 0;
-  let score=hay.includes(q)?100:0;
-  const qwords=words(clue), h=new Set(words(hay));
-  score += qwords.filter(w=>h.has(w)).length*10;
-  if(norm(title)===q) score+=120;
-  if(norm(title).includes(q)) score+=60;
-  return score;
+function getKey(){return localStorage.getItem(KEY_NAME)||''}
+function refreshKeyUI(){
+  const has=!!getKey();
+  $('keyStatus').textContent=has?'YouTube key saved on this device.':'No YouTube key saved yet.';
+  $('apiKey').value='';
+  if(!has)$('setup').classList.add('open');
 }
-function artistOK(wanted,actual){
-  if(!wanted) return true;
-  const a=norm(wanted), b=norm(actual);
-  return b.includes(a)||a.includes(b);
+$('setupBtn').onclick=()=>$('setup').classList.toggle('open');
+$('saveKey').onclick=()=>{
+  const k=$('apiKey').value.trim();
+  if(!k){$('keyStatus').textContent='Paste a key first.';return}
+  localStorage.setItem(KEY_NAME,k);refreshKeyUI();$('keyStatus').textContent='Saved. YouTube search is ready on this device.';
+};
+$('clearKey').onclick=()=>{localStorage.removeItem(KEY_NAME);refreshKeyUI()};
+
+function cleanVideoTitle(s){
+  let x=decodeHtml(s).replace(/[\[\(](?:official|lyrics?|audio|video|music video|visualizer|explicit|clean|hd|4k)[^\]\)]*[\]\)]/ig,'');
+  return x.replace(/\s+/g,' ').replace(/^["'“”]+|["'“”]+$/g,'').trim();
 }
-async function fetchJSON(url){
-  const r=await fetch(url);
-  if(!r.ok) throw new Error(r.status);
-  return r.json();
-}
-async function itunes(q){
-  return new Promise(resolve=>{
-    const cb='itcb_'+Date.now()+'_'+Math.random().toString(36).slice(2);
-    const s=document.createElement('script');
-    const timer=setTimeout(()=>{cleanup();resolve([])},8000);
-    function cleanup(){clearTimeout(timer);delete window[cb];s.remove()}
-    window[cb]=d=>{cleanup();resolve((d.results||[]).map(x=>({
-      title:x.trackName,artist:x.artistName,album:x.collectionName||'',source:'iTunes'
-    })))};
-    s.src='https://itunes.apple.com/search?media=music&entity=song&country=US&limit=35&callback='+cb+'&term='+encodeURIComponent(q);
-    s.onerror=()=>{cleanup();resolve([])};
-    document.body.appendChild(s);
-  });
-}
-async function lrclib(q){
-  try{
-    const d=await fetchJSON('https://lrclib.net/api/search?q='+encodeURIComponent(q));
-    return (Array.isArray(d)?d:[]).slice(0,35).map(x=>({
-      title:x.trackName,artist:x.artistName,album:x.albumName||'',source:'Lyrics'
-    }));
-  }catch(e){return []}
-}
-async function musicbrainz(q){
-  try{
-    const d=await fetchJSON('https://musicbrainz.org/ws/2/recording/?fmt=json&limit=25&query='+encodeURIComponent(q));
-    return (d.recordings||[]).map(x=>({
-      title:x.title,
-      artist:(x['artist-credit']||[]).map(a=>a.name||a.artist?.name).filter(Boolean).join(' / '),
-      album:(x.releases&&x.releases[0]?.title)||'',
-      source:'MusicBrainz'
-    }));
-  }catch(e){return []}
-}
-async function lyricCheck(item,clue){
-  if(words(clue).length<3) return false;
-  try{
-    const u='https://lrclib.net/api/search?track_name='+encodeURIComponent(item.title)+'&artist_name='+encodeURIComponent(item.artist);
-    const list=await fetchJSON(u);
-    const q=norm(clue);
-    return (Array.isArray(list)?list:[]).slice(0,3).some(x=>norm(x.plainLyrics||'').includes(q));
-  }catch(e){return false}
-}
-async function copyText(text,el){
-  try{await navigator.clipboard.writeText(text)}
-  catch(e){
-    const t=document.createElement('textarea');t.value=text;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();
+function ytCandidate(item,artistWanted,index){
+  const raw=cleanVideoTitle(item.snippet?.title||'');
+  const channel=decodeHtml(item.snippet?.channelTitle||'');
+  let title=raw, artist=artistWanted||channel;
+  const parts=raw.split(/\s[-–—]\s/).map(x=>x.trim()).filter(Boolean);
+  if(parts.length>=2){
+    const left=parts[0], right=parts.slice(1).join(' - ');
+    if(artistWanted){
+      if(norm(left).includes(norm(artistWanted))) title=right;
+      else if(norm(right).includes(norm(artistWanted))) title=left;
+      else title=raw;
+      artist=artistWanted;
+    }else{artist=left;title=right}
   }
-  const badge=el.querySelector('.badge');
-  badge.textContent='Copied!';
-  badge.classList.add('copied');
-  setTimeout(()=>{badge.textContent='Tap to copy';badge.classList.remove('copied')},1200);
+  title=title.replace(/\s+[|•]\s+.*$/,'').trim();
+  let score=1000-index*25;
+  if(artistWanted&&(norm(raw).includes(norm(artistWanted))||norm(channel).includes(norm(artistWanted))))score+=250;
+  if(/official|vevo|topic/i.test((item.snippet?.title||'')+' '+channel))score+=40;
+  return {title,artist,source:'YouTube',score,videoId:item.id?.videoId||''};
 }
-function dedupe(items){
-  const m=new Map();
-  for(const x of items){
-    if(!x.title||!x.artist) continue;
-    const k=norm(x.title)+'|'+norm(x.artist);
-    if(!m.has(k)) m.set(k,x);
-  }
-  return [...m.values()];
+async function youtube(q,artistWanted){
+  const key=getKey();
+  if(!key)return {items:[],missingKey:true};
+  const u=new URL('https://www.googleapis.com/youtube/v3/search');
+  u.searchParams.set('part','snippet');u.searchParams.set('type','video');u.searchParams.set('maxResults','15');
+  u.searchParams.set('order','relevance');u.searchParams.set('regionCode','US');u.searchParams.set('videoCategoryId','10');
+  u.searchParams.set('q',q);u.searchParams.set('key',key);
+  const r=await fetch(u.toString());
+  const d=await r.json();
+  if(!r.ok){const msg=d?.error?.message||('YouTube error '+r.status);throw new Error(msg)}
+  return {items:(d.items||[]).map((x,i)=>ytCandidate(x,artistWanted,i)),missingKey:false};
 }
+function artistOK(wanted,actual){if(!wanted)return true;const a=norm(wanted),b=norm(actual);return b.includes(a)||a.includes(b)}
+async function fetchJSON(url){const r=await fetch(url);if(!r.ok)throw new Error(r.status);return r.json()}
+async function itunes(q){return new Promise(resolve=>{const cb='itcb_'+Date.now()+'_'+Math.random().toString(36).slice(2),s=document.createElement('script');const timer=setTimeout(()=>{cleanup();resolve([])},7000);function cleanup(){clearTimeout(timer);delete window[cb];s.remove()}window[cb]=d=>{cleanup();resolve((d.results||[]).map(x=>({title:x.trackName,artist:x.artistName,source:'iTunes',score:300})))};s.src='https://itunes.apple.com/search?media=music&entity=song&country=US&limit=25&callback='+cb+'&term='+encodeURIComponent(q);s.onerror=()=>{cleanup();resolve([])};document.body.appendChild(s)})}
+async function lrclib(q){try{const d=await fetchJSON('https://lrclib.net/api/search?q='+encodeURIComponent(q));return (Array.isArray(d)?d:[]).slice(0,20).map(x=>({title:x.trackName,artist:x.artistName,source:'LRCLIB',score:280}))}catch(e){return []}}
+async function musicbrainz(q){try{const d=await fetchJSON('https://musicbrainz.org/ws/2/recording/?fmt=json&limit=20&query='+encodeURIComponent(q));return (d.recordings||[]).map(x=>({title:x.title,artist:(x['artist-credit']||[]).map(a=>a.name||a.artist?.name).filter(Boolean).join(' / '),source:'MusicBrainz',score:220}))}catch(e){return []}}
+function dedupe(items){const m=new Map();for(const x of items){if(!x.title||!x.artist)continue;const k=norm(x.title)+'|'+norm(x.artist);if(!m.has(k)||m.get(k).score<x.score)m.set(k,x)}return [...m.values()]}
+function render(items){$('results').innerHTML='';if(!items.length){$('status').textContent='No matches found.';return}$('status').textContent='Top matches';for(const x of items.slice(0,5)){const el=document.createElement('div');el.className='result';const song=document.createElement('div');song.className='song';song.textContent=x.title;const ar=document.createElement('div');ar.className='artist';ar.textContent=x.artist;const src=document.createElement('div');src.className='source';src.textContent=x.source+' • Tap to copy';el.append(song,ar,src);el.onclick=async()=>{const text=x.title+' — '+x.artist;try{await navigator.clipboard.writeText(text)}catch(e){const t=document.createElement('textarea');t.value=text;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove()}src.textContent='Copied!';src.classList.add('copied');setTimeout(()=>{src.textContent=x.source+' • Tap to copy';src.classList.remove('copied')},1200)};$('results').appendChild(el)}}
 async function search(){
-  const clue=$('clue').value.trim(), artist=$('artist').value.trim();
-  if(!clue){$('status').textContent='Type something you remember.';return}
-  $('find').disabled=true;
-  $('status').textContent='Searching...';
-  $('results').innerHTML='';
-  const q=[artist,clue].filter(Boolean).join(' ');
-  let all=[];
-  try{
-    const [a,b,c]=await Promise.all([itunes(q),lrclib(q),musicbrainz(q)]);
-    all=dedupe([...a,...b,...c]);
-    if(artist){
-      const filtered=all.filter(x=>artistOK(artist,x.artist));
-      if(filtered.length) all=filtered;
-    }
-    for(const x of all) x.score=scoreText(clue,x.title,x.artist,x.album)+(artist&&artistOK(artist,x.artist)?100:0);
-    all.sort((x,y)=>y.score-x.score);
-    const top=all.slice(0,12);
-    await Promise.all(top.map(async x=>{if(await lyricCheck(x,clue)) x.score+=350}));
-    top.sort((x,y)=>y.score-x.score);
-    const final=top.slice(0,5);
-    if(!final.length){$('status').textContent='No matches found.';return}
-    $('status').textContent='Top matches';
-    for(const x of final){
-      const el=document.createElement('div');el.className='result';
-      el.innerHTML='<div class="song">'+x.title+'</div><div class="artist">'+x.artist+'</div><div class="badge">Tap to copy</div>';
-      el.onclick=()=>copyText(x.title+' — '+x.artist,el);
-      $('results').appendChild(el);
-    }
-  }catch(e){
-    $('status').textContent='Search failed.';
-  }finally{$('find').disabled=false}
+  const clue=$('clue').value.trim(),artist=$('artist').value.trim();if(!clue){$('status').textContent='Type something you remember.';return}
+  $('find').disabled=true;$('status').textContent='Searching YouTube...';$('results').innerHTML='';
+  const q=[artist,clue].filter(Boolean).join(' ');let yt=[],ytProblem='';
+  try{const y=await youtube(q,artist);yt=y.items;if(y.missingKey)ytProblem='Add your YouTube API key above to use YouTube search.'}catch(e){ytProblem='YouTube: '+e.message}
+  let backup=[];
+  try{const [a,b,c]=await Promise.all([itunes(q),lrclib(q),musicbrainz(q)]);backup=dedupe([...a,...b,...c]);if(artist){const f=backup.filter(x=>artistOK(artist,x.artist));if(f.length)backup=f}}catch(e){}
+  const combined=dedupe([...yt,...backup]).sort((a,b)=>b.score-a.score);
+  render(combined);
+  if(ytProblem){$('status').textContent=combined.length?'Showing backup results. '+ytProblem:ytProblem;$('status').classList.add('error');$('setup').classList.add('open')}else{$('status').classList.remove('error')}
+  $('find').disabled=false;
 }
-$('find').onclick=search;
-$('clue').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
-$('artist').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
+$('find').onclick=search;$('clue').addEventListener('keydown',e=>{if(e.key==='Enter')search()});$('artist').addEventListener('keydown',e=>{if(e.key==='Enter')search()});refreshKeyUI();
 </script>
-</body>
-</html>
+</body></html>
