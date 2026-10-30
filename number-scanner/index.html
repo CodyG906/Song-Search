@@ -1,9 +1,6 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#111827"><title>Warehouse Number Scanner</title>
-<style>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827"><title>Daily Photo Log</title><style>
 :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#111827;background:#f3f4f6}*{box-sizing:border-box}body{margin:0}.app{max-width:620px;margin:auto;min-height:100vh;padding:calc(18px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom))}.hero{background:#111827;color:white;border-radius:24px;padding:24px;text-align:center;box-shadow:0 12px 30px #0002}.hero h1{font-size:24px;margin:0 0 6px}.hero p{opacity:.75;margin:0 0 22px}.camera{width:100%;border:0;border-radius:18px;padding:22px;background:white;color:#111827;font-weight:800;font-size:20px}.camera span{display:block;font-size:40px;margin-bottom:6px}.privacy{font-size:12px;opacity:.65;margin-top:14px}.card{background:white;border-radius:20px;padding:18px;margin-top:16px;box-shadow:0 4px 16px #0001}.hidden{display:none}.preview{width:100%;max-height:240px;object-fit:contain;border-radius:14px;background:#e5e7eb}.status{font-weight:700;margin:14px 0}.bar{height:8px;background:#e5e7eb;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:#111827;transition:width .25s}.result{display:flex;gap:10px;align-items:center;border:1px solid #e5e7eb;border-radius:15px;padding:13px;margin-top:10px}.num{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;font-weight:800;word-break:break-all;flex:1}.copy{border:0;border-radius:10px;padding:10px 12px;font-weight:700}.actions{display:flex;gap:10px;margin-top:14px}.actions button{flex:1;padding:13px;border:0;border-radius:12px;font-weight:700}.primary{background:#111827;color:white}.danger{background:#fee2e2;color:#991b1b}details{margin-top:14px}pre{white-space:pre-wrap;word-break:break-word;background:#f9fafb;padding:12px;border-radius:12px;font-size:13px}.history-item{padding:12px 0;border-bottom:1px solid #eee}.history-item:last-child{border:0}.time{font-size:12px;color:#6b7280;margin-bottom:4px}.empty{color:#6b7280}.note{font-size:12px;color:#6b7280;line-height:1.4;margin-top:10px}
 
 button{cursor:pointer;min-height:48px;font-size:16px;touch-action:manipulation}button:disabled{opacity:.45;cursor:default}button:focus-visible{outline:3px solid #38bdf8;outline-offset:3px}
@@ -11,68 +8,78 @@ button{cursor:pointer;min-height:48px;font-size:16px;touch-action:manipulation}b
 #cameraStatus{line-height:1.5;margin:12px 0 0}
 textarea{width:100%;min-height:150px;font:16px/1.5 ui-monospace,monospace;padding:12px;border:1px solid #d1d5db;border-radius:12px;resize:vertical}
 [hidden]{display:none!important}.privacy{opacity:.85;line-height:1.5}
-</style>
-</head><body><main class="app">
-<section class="hero"><h1>Number Scanner</h1><p>Grab product &amp; order numbers fast</p>
-<button id="openCamera" class="camera">Open Camera</button>
+</style><style>
+#gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.photo{padding:0;border:0;background:#f3f4f6;border-radius:14px;overflow:hidden;text-align:left}
+.photo img{display:block;width:100%;aspect-ratio:1;object-fit:cover}.photo span{display:block;padding:10px;font-size:13px;color:#374151}
+dialog{border:0;border-radius:18px;padding:12px;max-width:96vw;width:700px;max-height:95dvh}
+dialog::backdrop{background:#000b}#fullPhoto{display:block;width:100%;height:auto}#closeViewer{width:100%;margin-bottom:12px}
+#storageStatus{font-size:14px;line-height:1.5}h2{margin-top:0}
+</style></head><body><main class="app">
+<section class="hero"><h1>Daily Photo Log</h1><p>Capture now. Look back for 24 hours.</p>
+<button id="openCamera" class="camera" disabled>Open Camera</button>
 <video id="video" autoplay muted playsinline hidden aria-label="Live rear camera"></video>
-<div class="actions"><button id="capture" disabled hidden>Capture &amp; Scan</button><button id="stopCamera" hidden>Close Camera</button></div>
-<p id="cameraStatus" role="status">Open the camera, point at clear text, then capture.</p>
-<div class="privacy">Images stay in this browser. Nothing is uploaded or saved to Photos. Only text is kept in Recent Scans.</div></section>
-<section id="scanCard" class="card hidden">
-<div id="status" class="status" role="status" aria-live="polite"></div><div class="bar"><i id="progress"></i></div>
-<div id="results"></div>
-<div class="actions"><button id="copyNumbers" disabled>Copy All Numbers</button></div>
-<h2><label for="raw">Extracted Text</label></h2><textarea id="raw" placeholder="Scanned text appears here. You can correct it before copying."></textarea>
-<div class="actions"><button id="copyText" disabled>Copy Text</button><button class="primary" id="scanAgain">Scan Again</button></div>
-<p id="copyStatus" role="status" aria-live="polite"></p>
-<div class="note">OCR can confuse 0/O, 1/I, 5/S and 8/B. Check the result before using it.</div></section>
-<section class="card"><h2 style="margin-top:0">Recent Scans</h2><div id="history"></div><div class="actions"><button class="danger" id="clear">Clear History</button></div></section>
-</main>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-<script>
+<div class="actions"><button id="capture" disabled hidden>Capture Photo</button><button id="stopCamera" hidden>Close Camera</button></div>
+<p id="cameraStatus" role="status">Getting your photo log ready…</p>
+<div class="privacy">Photos stay in this browser on this device. No uploads. Nothing is added to iPhone Photos.</div></section>
+<section class="card"><h2>Last 24 Hours</h2><p id="storageStatus" role="status">Loading photos…</p><div id="gallery"></div>
+<p class="note">Each photo disappears 24 hours after capture. If the website is closed, expired photos are removed when you reopen it. Clearing browser data also clears these photos.</p></section>
+<dialog id="viewer"><button id="closeViewer">Close Photo</button><img id="fullPhoto" alt="Captured photo"><p id="photoTime"></p></dialog>
+</main><script>
 const $=id=>document.getElementById(id);
-const scanCard=$('scanCard'),statusEl=$('status'),progress=$('progress'),results=$('results'),raw=$('raw');
 const video=$('video'),openButton=$('openCamera'),capture=$('capture'),stopButton=$('stopCamera'),cameraStatus=$('cameraStatus');
-let stream=null, busy=false, opening=false, cameraGeneration=0, worker=null, numbers=[];
-const canvas=document.createElement('canvas');
-const KEY='warehouseScannerHistoryV1';
-function getHistory(){try{const h=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(h)?h.filter(x=>x&&Array.isArray(x.nums)&&x.nums.every(n=>typeof n==='string')):[]}catch{return[]}}
-function setHistory(v){try{localStorage.setItem(KEY,JSON.stringify(v.slice(0,30)))}catch{}renderHistory()}
-function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-function extractNumbers(text){
-  // Preserve leading zeroes, decimals, signs, fractions and product/order codes.
-  const tokens=text.match(/[-+]?(?:[A-Za-z0-9]+(?:[._\/-][A-Za-z0-9]+)*|\.\d+)(?:,\d{3})*(?:\.\d+)?/g)||[];
-  return [...new Set(tokens.filter(t=>/\d/.test(t)))];
+let stream=null,busy=false,opening=false,cameraGeneration=0,db=null,renderGeneration=0,expiryTimer=null;
+const canvas=document.createElement('canvas'),DAY=24*60*60*1000;
+let urls=[],viewedId=null;
+function expired(photo,now=Date.now()){return !Number.isFinite(photo.createdAt)||photo.createdAt+DAY<=now}
+function openDB(){return new Promise((resolve,reject)=>{
+ const request=indexedDB.open('dailyPhotoLogV1',1);
+ request.onupgradeneeded=()=>request.result.createObjectStore('photos',{keyPath:'id',autoIncrement:true});
+ request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+ request.onblocked=()=>{$('storageStatus').textContent='Close other tabs of this photo log, then reload.'};
+})}
+function savePhoto(blob,createdAt){return new Promise((resolve,reject)=>{
+ const tx=db.transaction('photos','readwrite');tx.objectStore('photos').add({blob,createdAt});
+ tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+})}
+function recentPhotos(){return new Promise((resolve,reject)=>{
+ const tx=db.transaction('photos','readwrite'),photos=[],now=Date.now();
+ const request=tx.objectStore('photos').openCursor();
+ request.onsuccess=()=>{const cursor=request.result;if(!cursor)return;
+ if(expired(cursor.value,now))cursor.delete();else photos.push(cursor.value);cursor.continue()};
+ tx.oncomplete=()=>resolve(photos.sort((a,b)=>b.createdAt-a.createdAt));
+ tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+})}
+function closeViewer(){$('viewer').close();$('fullPhoto').removeAttribute('src');viewedId=null}
+function clearGallery(){
+ closeViewer();$('gallery').replaceChildren();urls.forEach(url=>URL.revokeObjectURL(url));urls=[];
 }
-async function copyValue(value){
-  if(!value)return;
-  try{
-    if(navigator.clipboard&&window.isSecureContext) await navigator.clipboard.writeText(value);
-    else throw new Error('fallback');
-    $('copyStatus').textContent='Copied.';
-  }catch{
-    const helper=document.createElement('textarea');helper.value=value;
-    helper.style.cssText='position:fixed;top:0;left:0;width:1px;height:1px;opacity:0';
-    document.body.appendChild(helper);helper.focus();helper.select();helper.setSelectionRange(0,value.length);
-    let copied=false;try{copied=document.execCommand('copy')}catch{}
-    helper.remove();
-    $('copyStatus').textContent=copied?'Copied.':'Copy unavailable. Touch and hold the extracted text to select and copy.';
-  }
+async function renderGallery(){
+ if(!db)return;
+ const generation=++renderGeneration;
+ try{
+ const photos=await recentPhotos();
+ if(generation!==renderGeneration)return;
+ const live=photos.filter(p=>!expired(p));
+ clearTimeout(expiryTimer);clearGallery();
+ $('storageStatus').textContent=live.length?live.length+' photo'+(live.length===1?'':'s')+'. Tap a photo to enlarge.':'No photos from the last 24 hours.';
+ for(const photo of live){
+ const url=URL.createObjectURL(photo.blob);urls.push(url);
+ const button=document.createElement('button');button.className='photo';
+ const img=document.createElement('img');img.src=url;img.alt='Photo taken '+new Date(photo.createdAt).toLocaleString();img.loading='lazy';
+ const time=document.createElement('span');time.textContent=new Date(photo.createdAt).toLocaleString();
+ button.append(img,time);button.onclick=()=>{
+ if(expired(photo)){renderGallery();return}
+ viewedId=photo.id;$('fullPhoto').src=url;
+ $('photoTime').textContent='Taken '+new Date(photo.createdAt).toLocaleString()+'. Expires '+new Date(photo.createdAt+DAY).toLocaleString();
+ $('viewer').showModal();
+ };$('gallery').append(button);
+ }
+ if(live.length)expiryTimer=setTimeout(renderGallery,Math.max(1,Math.min(...live.map(p=>p.createdAt+DAY))-Date.now()));
+ }catch{$('storageStatus').textContent='Could not read saved photos. Reload to try again.'}
 }
-function showResults(nums){
-  results.innerHTML=nums.length?'<h2>Numbers &amp; Codes Found</h2>':'<p class="empty">No numbers found. Check the extracted text below.</p>';
-  nums.forEach(n=>{
-    const row=document.createElement('div');row.className='result';
-    const label=document.createElement('div');label.className='num';label.textContent=n;
-    const button=document.createElement('button');button.className='copy';button.textContent='Copy';
-    button.setAttribute('aria-label','Copy '+n);button.onclick=()=>copyValue(n);
-    row.append(label,button);results.appendChild(row);
-  });
-}
-function renderHistory(){const h=getHistory(), el=document.getElementById('history');if(!h.length){el.innerHTML='<div class="empty">No scans yet.</div>';return}el.innerHTML=h.map(x=>`<div class="history-item"><div class="time">${escapeHtml(new Date(x.time).toLocaleString())}</div><div class="num" style="font-size:17px">${x.nums.map(escapeHtml).join(' · ')||'No number detected'}</div></div>`).join('')}
-
-$('clear').onclick=()=>{try{localStorage.removeItem(KEY)}catch{}renderHistory()};renderHistory();
+$('closeViewer').onclick=closeViewer;
+$('viewer').addEventListener('close',()=>{$('fullPhoto').removeAttribute('src');viewedId=null});
 function stopCamera(){
   cameraGeneration++;
   if(stream)stream.getTracks().forEach(t=>t.stop());
@@ -87,13 +94,13 @@ async function openCamera(){
   try{
     if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia)
       throw new Error('secure');
-    const next=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}});
+    const next=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:2560},height:{ideal:1440}}});
     if(generation!==cameraGeneration){next.getTracks().forEach(t=>t.stop());return}
     stream=next;video.srcObject=stream;video.hidden=false;await video.play();
     if(generation!==cameraGeneration)return;
     openButton.hidden=true;capture.hidden=false;stopButton.hidden=false;
     capture.disabled=video.readyState<2||!video.videoWidth;
-    cameraStatus.textContent='Point at the text. Hold steady, then tap Capture & Scan.';
+    cameraStatus.textContent='Frame your photo. Hold steady, then tap Capture Photo.';
   }catch(e){
     if(generation!==cameraGeneration)return;
     stopCamera();
@@ -106,48 +113,32 @@ async function openCamera(){
 video.addEventListener('loadeddata',()=>{if(stream&&!busy)capture.disabled=false});
 openButton.onclick=openCamera;
 stopButton.onclick=()=>{stopCamera();cameraStatus.textContent='Camera closed. Tap Open Camera to resume.'};
-$('scanAgain').onclick=()=>{if(busy)return;scanCard.classList.add('hidden');raw.value='';results.innerHTML='';numbers=[];$('copyText').disabled=true;$('copyNumbers').disabled=true;$('copyStatus').textContent='';openCamera()};
-$('copyText').onclick=()=>copyValue(raw.value);
-$('copyNumbers').onclick=()=>copyValue(numbers.join('\n'));
-raw.oninput=()=>{$('copyText').disabled=!raw.value.trim()};
+
 capture.onclick=async()=>{
-  if(busy||!stream||video.readyState<2||!video.videoWidth)return;
-  busy=true;capture.disabled=true;$('scanAgain').disabled=true;openButton.disabled=true;
-  scanCard.classList.remove('hidden');raw.value='';results.innerHTML='';numbers=[];
-  $('copyText').disabled=true;$('copyNumbers').disabled=true;$('copyStatus').textContent='';
-  statusEl.textContent='Loading local OCR engine…';progress.style.width='2%';
-  let timer, active=true;
-  try{
-    const scale=Math.min(1,2200/Math.max(video.videoWidth,video.videoHeight));
-    canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
-    canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
-    stopCamera();cameraStatus.textContent='Capture complete. Camera is off.';
-    const work=async()=>{
-      if(!window.Tesseract)throw new Error('OCR engine unavailable');
-      const acquired=await Tesseract.createWorker('eng',1,{
-        logger:m=>{if(busy&&m.status){statusEl.textContent=m.status+'…';if(m.progress!=null)progress.style.width=Math.round(m.progress*100)+'%'}},
-        errorHandler:()=>{}
-      });
-      if(!active){await acquired.terminate();throw new Error('expired')}
-      worker=acquired;
-      return worker.recognize(canvas);
-    };
-    const ret=await Promise.race([work(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('timeout')),90000)})]);
-    const text=(ret.data.text||'').trim();numbers=extractNumbers(text);raw.value=text;showResults(numbers);
-    $('copyText').disabled=!text;$('copyNumbers').disabled=!numbers.length;
-    statusEl.textContent=text?'Scan complete':'No text detected. Try closer, brighter, and steadier.';
-    progress.style.width='100%';
-    if(text){const h=getHistory();h.unshift({time:Date.now(),nums:numbers,text:text.slice(0,1200)});setHistory(h)}
-  }catch(e){
-    statusEl.textContent='Scan failed. Tap Scan Again to retry. An internet connection is needed to download the OCR engine.';
-    if(worker){worker.terminate().catch(()=>{});worker=null}
-  }finally{
-    active=false;clearTimeout(timer);if(worker){worker.terminate().catch(()=>{});worker=null}canvas.width=0;canvas.height=0;
-    busy=false;$('scanAgain').disabled=false;openButton.disabled=false;
-  }
+ if(busy||!db||!stream||video.readyState<2||!video.videoWidth)return;
+ busy=true;capture.disabled=true;openButton.disabled=true;
+ const createdAt=Date.now();
+ try{
+ const scale=Math.min(1,2560/Math.max(video.videoWidth,video.videoHeight));
+ canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
+ canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+ stopCamera();cameraStatus.textContent='Saving photo…';
+ const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('capture')),'image/jpeg',0.9));
+ await recentPhotos();await savePhoto(blob,createdAt);await renderGallery();
+ cameraStatus.textContent='Photo saved for 24 hours. Tap Take Another Photo to continue.';
+ openButton.textContent='Take Another Photo';
+ }catch{cameraStatus.textContent='Photo was not saved. Browser storage may be full or unavailable. Free up space, then try again.'}
+ finally{canvas.width=0;canvas.height=0;busy=false;openButton.disabled=false}
 };
 document.addEventListener('visibilitychange',()=>{
-  if(document.hidden){stopCamera();cameraStatus.textContent='Camera paused. Tap Open Camera to resume.'}
+ if(document.hidden){stopCamera();renderGeneration++;clearGallery();cameraStatus.textContent='Camera paused. Tap Open Camera to resume.'}
+ else renderGallery();
 });
-window.addEventListener('pagehide',()=>{stopCamera();if(worker){worker.terminate().catch(()=>{});worker=null}});
+window.addEventListener('pagehide',()=>{stopCamera();renderGeneration++;clearGallery()});
+window.addEventListener('pageshow',()=>{if(db)renderGallery()});
+(async()=>{
+ try{db=await openDB();db.onversionchange=()=>{db.close();db=null;stopCamera();openButton.disabled=true;cameraStatus.textContent='Reload to continue.'};
+ await renderGallery();openButton.disabled=false;cameraStatus.textContent='Open the camera, then tap Capture Photo.'}
+ catch{$('storageStatus').textContent='Photo storage is unavailable in this browser. Open this page in Safari with browser storage enabled.';openButton.disabled=true}
+})();
 </script></body></html>
