@@ -15,13 +15,22 @@ textarea{width:100%;min-height:150px;font:16px/1.5 ui-monospace,monospace;paddin
 dialog{border:0;border-radius:18px;padding:12px;max-width:96vw;width:700px;max-height:95dvh}
 dialog::backdrop{background:#000b}#fullPhoto{display:block;width:100%;height:auto}#closeViewer{width:100%;margin-bottom:12px}
 #storageStatus{font-size:14px;line-height:1.5}h2{margin-top:0}
+</style><style>
+.photo-wrap{background:#f9fafb;border-radius:14px;overflow:hidden}
+.photo-wrap .photo{width:100%}
+.photo-tools{padding:10px;display:grid;gap:8px}
+.photo-tools textarea{min-height:85px;font-size:14px;background:white}
+.photo-tools .actions{margin:0}
+.photo-tools .actions button{font-size:14px;padding:9px;min-height:42px}
+#fileInput{display:none}.import{display:block;background:#e5e7eb;color:#111827;padding:14px;border-radius:12px;text-align:center;font-weight:700;cursor:pointer}
 </style></head><body><main class="app">
 <section class="hero"><h1>Daily Photo Log</h1><p>Capture now. Look back for 24 hours.</p>
 <button id="openCamera" class="camera" disabled>Open Camera</button>
 <video id="video" autoplay muted playsinline hidden aria-label="Live rear camera"></video>
 <div class="actions"><button id="capture" disabled hidden>Capture Photo</button><button id="stopCamera" hidden>Close Camera</button></div>
 <p id="cameraStatus" role="status">Getting your photo log ready…</p>
-<div class="privacy">Photos stay in this browser on this device. No uploads. Nothing is added to iPhone Photos.</div></section>
+<label for="fileInput" class="import">Upload Photo / Screenshot</label><input id="fileInput" type="file" accept="image/*">
+<div class="privacy">Photos and extracted text stay in this browser for 24 hours. Cloud syncing is not enabled yet.</div></section>
 <section class="card"><h2>Last 24 Hours</h2><p id="storageStatus" role="status">Loading photos…</p><div id="gallery"></div>
 <p class="note">Each photo disappears 24 hours after capture. If the website is closed, expired photos are removed when you reopen it. Clearing browser data also clears these photos.</p></section>
 <dialog id="viewer"><button id="closeViewer">Close Photo</button><img id="fullPhoto" alt="Captured photo"><p id="photoTime"></p></dialog>
@@ -42,6 +51,14 @@ function savePhoto(blob,createdAt){return new Promise((resolve,reject)=>{
  const tx=db.transaction('photos','readwrite');tx.objectStore('photos').add({blob,createdAt});
  tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
 })}
+function updatePhoto(id,changes){return new Promise((resolve,reject)=>{const tx=db.transaction('photos','readwrite'),store=tx.objectStore('photos'),request=store.get(id);request.onsuccess=()=>{if(request.result)store.put({...request.result,...changes})};tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error)})}
+let ocrLoader=null;
+async function getOCR(){
+ if(window.Tesseract)return window.Tesseract;
+ if(!ocrLoader)ocrLoader=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';script.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(new Error('OCR unavailable'));script.onerror=()=>reject(new Error('OCR library could not load'));document.head.append(script)});
+ return ocrLoader;
+}
+async function copyText(value,button){try{await navigator.clipboard.writeText(value);button.textContent='Copied!';setTimeout(()=>button.textContent='Copy Text',1400)}catch{button.textContent='Select text to copy';}}
 function recentPhotos(){return new Promise((resolve,reject)=>{
  const tx=db.transaction('photos','readwrite'),photos=[],now=Date.now();
  const request=tx.objectStore('photos').openCursor();
@@ -62,9 +79,10 @@ async function renderGallery(){
  if(generation!==renderGeneration)return;
  const live=photos.filter(p=>!expired(p));
  clearTimeout(expiryTimer);clearGallery();
- $('storageStatus').textContent=live.length?live.length+' photo'+(live.length===1?'':'s')+'. Tap a photo to enlarge.':'No photos from the last 24 hours.';
+ $('storageStatus').textContent=live.length?live.length+' photo'+(live.length===1?'':'s')+'. Tap a photo to enlarge, or extract and copy its text.':'No photos from the last 24 hours.';
  for(const photo of live){
  const url=URL.createObjectURL(photo.blob);urls.push(url);
+ const wrapper=document.createElement('div');wrapper.className='photo-wrap';
  const button=document.createElement('button');button.className='photo';
  const img=document.createElement('img');img.src=url;img.alt='Photo taken '+new Date(photo.createdAt).toLocaleString();img.loading='lazy';
  const time=document.createElement('span');time.textContent=new Date(photo.createdAt).toLocaleString();
@@ -73,12 +91,33 @@ async function renderGallery(){
  viewedId=photo.id;$('fullPhoto').src=url;
  $('photoTime').textContent='Taken '+new Date(photo.createdAt).toLocaleString()+'. Expires '+new Date(photo.createdAt+DAY).toLocaleString();
  $('viewer').showModal();
- };$('gallery').append(button);
+ };
+ const tools=document.createElement('div');tools.className='photo-tools';
+ const txt=document.createElement('textarea');txt.setAttribute('aria-label','Extracted text from photo');txt.placeholder='Tap Extract Text to recognize text in this photo. You can edit the result.';txt.value=photo.text||'';
+ let debounce;
+ txt.oninput=()=>{clearTimeout(debounce);const value=txt.value;debounce=setTimeout(async()=>{photo.text=value;await updatePhoto(photo.id,{text:value})},300)};
+ const bar=document.createElement('div');bar.className='actions';
+ const scan=document.createElement('button');scan.className='primary';scan.textContent='Extract Text';
+ const copy=document.createElement('button');copy.textContent='Copy Text';
+ scan.onclick=async()=>{if(expired(photo)){renderGallery();return}scan.disabled=true;scan.textContent='Reading photo…';
+ try{const engine=await getOCR();const res=await engine.recognize(photo.blob,'eng');const recognized=res.data.text.trim();photo.text=recognized;txt.value=recognized;await updatePhoto(photo.id,{text:recognized});scan.textContent=recognized?'Extract Again':'No text found';}
+ catch(e){scan.textContent='Retry Extract Text';txt.placeholder='Text recognition failed. Check your connection and retry.'}
+ finally{scan.disabled=false}};
+ copy.onclick=()=>copyText(txt.value,copy);
+ bar.append(scan,copy);tools.append(bar,txt);wrapper.append(button,tools);$('gallery').append(wrapper);
  }
  if(live.length)expiryTimer=setTimeout(renderGallery,Math.max(1,Math.min(...live.map(p=>p.createdAt+DAY))-Date.now()));
  }catch{$('storageStatus').textContent='Could not read saved photos. Reload to try again.'}
 }
 $('closeViewer').onclick=closeViewer;
+$('fileInput').addEventListener('change',async event=>{
+ const file=event.target.files?.[0];if(!file||!db)return;
+ if(!file.type.startsWith('image/')){cameraStatus.textContent='Choose an image file.';return}
+ cameraStatus.textContent='Saving uploaded photo…';
+ try{await recentPhotos();await savePhoto(file,Date.now());await renderGallery();cameraStatus.textContent='Photo saved for 24 hours. Tap Extract Text below the photo.'}
+ catch{cameraStatus.textContent='Could not save the uploaded photo.'}
+ finally{event.target.value=''}
+});
 $('viewer').addEventListener('close',()=>{$('fullPhoto').removeAttribute('src');viewedId=null});
 function stopCamera(){
   cameraGeneration++;
